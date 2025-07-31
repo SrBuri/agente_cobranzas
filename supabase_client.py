@@ -3,10 +3,10 @@ import os
 from dotenv import load_dotenv
 import random
 
-load_dotenv
+load_dotenv()
 
-supabase_url = os.getenv("supabase_url")
-supabase_key = os.getenv("supabase_api_key")
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_API_KEY")
 
 supabase: Client = create_client(supabase_url, supabase_key)
 
