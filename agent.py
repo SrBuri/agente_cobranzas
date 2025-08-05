@@ -20,6 +20,7 @@ flujo_personalizado = (
     .replace("{facturas}", str(cliente_activo["facturas_vencidas"]))
     .replace("{deuda}", str(cliente_activo["monto_deuda"]))
     .replace("{telefono}", cliente_activo["telefono1"])
+    .replace("{segmento}", cliente_activo["segmento"])
 )
 
 system = SystemMessage(content=flujo_personalizado)
@@ -61,10 +62,11 @@ def cerrar(respuesta: str) -> bool:
         "hasta luego",
         "nos despedimos",
         "¡hasta la próxima!",
-        "Le agradezco su tiempo"
-        "deseo un buen día"
+        "Le agradezco su tiempo",
+        "deseo un buen día",
+        "Que tenga un excelente día"
     ]
-    return any(frase in  respuesta.lower() for frase in frases_cierre)
+    return any(frase in respuesta.lower() for frase in frases_cierre)
 
 def obtener_cliente():
     return cliente_activo
