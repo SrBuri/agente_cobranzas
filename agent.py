@@ -1,72 +1,95 @@
-from langchain.schema import (
-    SystemMessage,
-    HumanMessage,
-)
+from typing import Any, List, TypedDict, Annotated
+
+from langchain.prompts import ChatPromptTemplate
+from langchain.schema import HumanMessage
+from langchain_core.messages import AnyMessage
+from langgraph.graph import StateGraph
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode, tools_condition
+
 from config import cargar_flujo, get_model
 from supabase_client import obtener_cliente_random
-from langchain.agents import create_openai_functions_agent, AgentExecutor
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tools import tools
 
-flujo = cargar_flujo()
 chat = get_model()
+cliente = obtener_cliente_random()
 
-cliente_activo = obtener_cliente_random()
-
-flujo_personalizado = (
-    flujo
-    .replace("{nombre}", cliente_activo["nombre"])
-    .replace("{contrato}", cliente_activo["contrato"])
-    .replace("{facturas}", str(cliente_activo["facturas_vencidas"]))
-    .replace("{deuda}", str(cliente_activo["monto_deuda"]))
-    .replace("{telefono}", cliente_activo["telefono1"])
-    .replace("{segmento}", cliente_activo["segmento"])
+flujo = cargar_flujo()
+flujo = (flujo
+    .replace("{nombre}", cliente["nombre"])
+    .replace("{contrato}", cliente["contrato"])
+    .replace("{facturas}", str(cliente["facturas_vencidas"]))
+    .replace("{deuda}", str(cliente["monto_deuda"]))
+    .replace("{telefono}", cliente["telefono1"])
+    .replace("{segmento}", cliente["segmento"])
 )
 
-system = SystemMessage(content=flujo_personalizado)
+class State(TypedDict):
+    messages: Annotated[List[AnyMessage], add_messages]
 
 prompt = ChatPromptTemplate.from_messages([
-    system,
-    MessagesPlaceholder(variable_name="chat_history"),
-    ("human", "{input}"),
-    MessagesPlaceholder(variable_name="agent_scratchpad")
+    ("system", flujo),
+    ("placeholder", "{messages}")
 ])
 
-messages = [
-    SystemMessage(content=flujo_personalizado)
-]
+agent = prompt | chat.bind_tools(tools)
 
-agent = create_openai_functions_agent(
-    llm=chat,
-    tools=tools,
-    prompt=prompt
-)
+def recibir_input(State):
+    user_input = input("👤 Cliente: ")
+    State["messages"].append(HumanMessage(content=user_input))
+    return State
 
-agent_executor = AgentExecutor(
-    agent=agent,
-    tools=tools,
-    verbose=True,
-    return_intermediate_steps=True,
-    handle_parsing_errors=True
-)
+def ejecutar_agente(State):
+    output = agent.invoke(State)
+    respuesta = str(output.content)
+    print(f"\n🤖 Daniela: {respuesta}\n")
+    State["messages"].append(output)
+    return State
 
-def responder(usuario: str) -> str:
-    messages.append(HumanMessage(content=usuario))
-    respuesta = agent_executor.invoke({"input": usuario, "chat_history": messages})
-    messages.append(HumanMessage(content=respuesta["output"]))
-    return respuesta["output"]
-
-def cerrar(respuesta: str) -> bool:
+def verificar_cierre(State):
     frases_cierre = [
         "que tenga un buen día",
         "hasta luego",
         "nos despedimos",
         "¡hasta la próxima!",
-        "Le agradezco su tiempo",
+        "le agradezco su tiempo",
         "deseo un buen día",
-        "Que tenga un excelente día"
+        "que tenga un excelente día"
     ]
-    return any(frase in respuesta.lower() for frase in frases_cierre)
+    if any(frase in State["messages"][-1].content.lower() for frase in frases_cierre):
+        return "finalizar"
+    return "recibir_input"
 
-def obtener_cliente():
-    return cliente_activo
+
+def decision_combined(State: dict[str, Any]) -> str:
+
+    if verificar_cierre(State) == "finalizar":
+        return "finalizar"
+    decision = tools_condition(State)
+    if decision == "__end__":
+        return "recibir_input"
+    return decision
+
+graph = StateGraph(State)
+
+graph.add_node("recibir_input", recibir_input)
+graph.add_node("ejecutar_agente", ejecutar_agente)
+graph.add_node("tools", ToolNode(tools))
+graph.add_node("finalizar", lambda State: print("✅ Conversación finalizada."))
+
+graph.set_entry_point("recibir_input")
+graph.add_edge("recibir_input", "ejecutar_agente")
+graph.add_conditional_edges("ejecutar_agente", decision_combined, {
+    "recibir_input": "recibir_input",
+    "finalizar": "finalizar",
+    "tools": "tools"
+})
+graph.add_edge("tools", "ejecutar_agente")
+graph.set_finish_point("finalizar")
+
+
+app = graph.compile()
+
+with open("grafo.png", "wb") as f:
+    f.write(app.get_graph().draw_mermaid_png())
+print("✅ Diagrama guardado como grafo.png")
