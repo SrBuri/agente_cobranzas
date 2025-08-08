@@ -1,7 +1,8 @@
-from supabase import create_client, Client
 import os
-from dotenv import load_dotenv
 import random
+
+from dotenv import load_dotenv
+from supabase import create_client, Client
 
 load_dotenv()
 

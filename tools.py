@@ -1,9 +1,15 @@
-from supabase_client import supabase
-from langchain.tools import Tool
-from datetime import datetime, timedelta
 import dateparser
+from langchain.tools import Tool, tool
 
+from supabase_client import supabase
+
+
+@tool
 def consultar_cliente(contrato: str) -> str:
+    """
+    Consulta los datos de un cliente por su número de contrato.
+    Usa este formato: 'C-001234'
+    """
     res = supabase.table("clientes").select("*").eq("contrato", contrato).eq("activo", True).execute()
     data = res.data
     if not data:
@@ -16,6 +22,7 @@ def consultar_cliente(contrato: str) -> str:
         f"Teléfono: {cliente['telefono1']}"
     )
 
+@tool
 def registrar_compromiso(datos: str) -> str:
     """
     Formato esperado: "contrato=C-001234;monto=30.5;fecha=2025-08-01;canal=Servipagos"
@@ -42,6 +49,7 @@ def registrar_compromiso(datos: str) -> str:
     except Exception as e:
         return f"Error al registrar el compromiso {str(e)}"
 
+@tool
 def registrar_objecion(datos: str) -> str:
     """
     Formato: "contrato=C-001234;tipo=Falta de dinero;mensaje=Estoy desempleado"
@@ -66,6 +74,7 @@ def registrar_objecion(datos: str) -> str:
     except Exception as e:
         return f"Error al registrar objeción: {str(e)}"
 
+@tool
 def interpretar_fecha(fecha_natural: str) -> str:
     """
     Convierte expresiones como 'mañana', 'el viernes', 'en 3 días'
@@ -76,6 +85,7 @@ def interpretar_fecha(fecha_natural: str) -> str:
         return resultado.strftime("%Y-%m-%d")
     return "No se pudo interpretar la fecha"
 
+@tool
 def verificar_medio_pago(name_canal: str) -> str:
     """
     verifica que el medio de pago este disponible
@@ -89,6 +99,7 @@ def verificar_medio_pago(name_canal: str) -> str:
             + ", ".join(canales_valido) + "."
         )
 
+@tool
 def actualizar_datos_cliente(datos: str) -> str:
     """
     Actualiza los datos de contacto del cliente.
