@@ -13,4 +13,4 @@ Agente conversacional para gestiones de cobro automatizadas usando LangChain, Op
 - `agente.py`: lógica del agente
 - `tools.py`: herramientas (tools LangChain)
 - `supabase_client.py`: conexión con Supabase
-- `flujo_daniela.md`: prompt y reglas del flujo
+- `flujo_daniela.txt`: prompt y reglas del flujo
