@@ -13,5 +13,5 @@ def get_model():
     return ChatOpenAI(
         model="gpt-4.1-mini-2025-04-14",
         temperature=0.3,
-        openai_api_key=os.getenv("OPENAI_API_KEY")
+        openrouter_api_key=os.getenv("OPENROUTER_API_KEY")
     )

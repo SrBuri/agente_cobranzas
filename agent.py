@@ -1,3 +1,4 @@
+import json
 from typing import Any, List, TypedDict, Annotated
 
 from langchain.prompts import ChatPromptTemplate
@@ -13,7 +14,6 @@ from tools import tools
 
 chat = get_model()
 cliente = obtener_cliente_random()
-
 flujo = cargar_flujo()
 flujo = (flujo
     .replace("{nombre}", cliente["nombre"])
@@ -40,10 +40,14 @@ def recibir_input(State):
     return State
 
 def ejecutar_agente(State):
+    print(State["messages"])
     output = agent.invoke(State)
     respuesta = str(output.content)
-    print(f"\n🤖 Daniela: {respuesta}\n")
     State["messages"].append(output)
+    if respuesta == "":
+        return State
+    else:
+        print(f"\n🤖 Daniela: {respuesta}\n")
     return State
 
 def verificar_cierre(State):
@@ -62,7 +66,6 @@ def verificar_cierre(State):
 
 
 def decision_combined(State: dict[str, Any]) -> str:
-
     if verificar_cierre(State) == "finalizar":
         return "finalizar"
     decision = tools_condition(State)
@@ -71,7 +74,6 @@ def decision_combined(State: dict[str, Any]) -> str:
     return decision
 
 graph = StateGraph(State)
-
 graph.add_node("recibir_input", recibir_input)
 graph.add_node("ejecutar_agente", ejecutar_agente)
 graph.add_node("tools", ToolNode(tools))
@@ -87,9 +89,8 @@ graph.add_conditional_edges("ejecutar_agente", decision_combined, {
 graph.add_edge("tools", "ejecutar_agente")
 graph.set_finish_point("finalizar")
 
-
 app = graph.compile()
 
-with open("grafo.png", "wb") as f:
+""" with open("grafo.png", "wb") as f:
     f.write(app.get_graph().draw_mermaid_png())
-print("✅ Diagrama guardado como grafo.png")
+print("✅ Diagrama guardado como grafo.png") """
