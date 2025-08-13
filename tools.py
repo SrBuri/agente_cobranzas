@@ -1,8 +1,10 @@
 import dateparser
+from datetime import datetime, timedelta
+import pytz
+
 from langchain.tools import Tool, tool
 
 from supabase_client import supabase
-
 
 @tool
 def consultar_cliente(contrato: str) -> str:
@@ -77,13 +79,40 @@ def registrar_objecion(datos: str) -> str:
 @tool
 def interpretar_fecha(fecha_natural: str) -> str:
     """
-    Convierte expresiones como 'mañana', 'el viernes', 'en 3 días'
-    en una fecha exacta en formato YYYY-MM-DD.
+    Convierte expresiones como 'hoy', 'mañana', 'viernes', 
+    'en 3 días', 'el próximo lunes', etc. en formato YYYY-MM-DD.
     """
-    resultado = dateparser.parse(fecha_natural, languages=['es'])
-    if resultado:
-        return resultado.strftime("%Y-%m-%d")
-    return "No se pudo interpretar la fecha"
+    if not fecha_natural or not fecha_natural.strip():
+        return "La entrada está vacía o es inválida"
+
+    fecha_natural = fecha_natural.lower().strip()
+    zona_colombia = pytz.timezone("America/Bogota")
+    fecha_base = datetime.now(zona_colombia)
+
+    if fecha_natural == "pasado mañana":
+        return (fecha_base + timedelta(days=2)).strftime("%Y-%m-%d")
+
+    if fecha_natural.startswith("el "):
+        fecha_natural = fecha_natural[3:]
+    elif fecha_natural.startswith("este "):
+        fecha_natural = fecha_natural[5:]
+    elif fecha_natural.startswith("proximo "):
+        fecha_natural = fecha_natural[8:]
+
+    resultado = dateparser.parse(
+        fecha_natural,
+        languages=['es'],
+        settings={
+            'PREFER_DATES_FROM': 'future',
+            'RELATIVE_BASE': fecha_base,
+            'TIMEZONE': 'America/Bogota',
+            'RETURN_AS_TIMEZONE_AWARE': True
+        }
+    )
+
+    if not resultado:
+        return "No se pudo interpretar la fecha"
+    return resultado.strftime("%Y-%m-%d")
 
 @tool
 def verificar_medio_pago(name_canal: str) -> str:
@@ -117,7 +146,7 @@ def actualizar_datos_cliente(datos: str) -> str:
             return "Contrato no encontrado."
 
         updates = {}
-        if "telefono" in partes:
+        if "telefono1" in partes:
             updates["telefono1"] = partes["telefono1"]
         if "telefono2" in partes:
             updates["telefono2"] = partes["telefono2"]
@@ -154,7 +183,7 @@ tools = [
         func=interpretar_fecha,
         name="InterpretarFechaRelativa",
         description=(
-            "Convierte expresiones naturales de tiempo como 'mañana', 'el viernes' o 'en 3 días' "
+            "Convierte expresiones naturales de tiempo como 'hoy', 'mañana', 'viernes' o 'en 3 días' "
             "en una fecha exacta con formato 'YYYY-MM-DD'. Úsalo cuando el cliente mencione "
             "una fecha de pago relativa."
         )
