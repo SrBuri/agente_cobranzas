@@ -83,6 +83,13 @@ def get_model():
     Returns:
         ChatLiteLLM: Objeto de modelo configurado para streaming y con medición de latencia.
     """
+    def get_model():
+    """
+    Configura e instancia el modelo de lenguaje.
+
+    Returns:
+        ChatLiteLLM: Objeto de modelo configurado para streaming y con medición de latencia.
+    """
     return ChatLiteLLM(
         model="openrouter/openai/gpt-oss-120b",
         temperature=0.3,
