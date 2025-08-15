@@ -1,3 +1,11 @@
+"""
+Módulo que define el agente conversacional y su flujo de interacción.
+
+- Carga y personaliza el flujo inicial con datos de un cliente aleatorio.
+- Define el estado de la conversación y nodos de ejecución.
+- Implementa funciones para recibir input, ejecutar el modelo y decidir flujo.
+"""
+
 import json
 from typing import Any, List, TypedDict, Annotated
 
@@ -12,8 +20,12 @@ from config import cargar_flujo, get_model
 from supabase_client import obtener_cliente_random
 from tools import tools
 
+# Instancia del modelo y cliente aleatorio
 chat = get_model()
 cliente = obtener_cliente_random()
+
+
+# Personalización del flujo con datos del cliente
 flujo = cargar_flujo()
 flujo = (flujo
     .replace("{nombre}", cliente["nombre"])
@@ -25,22 +37,38 @@ flujo = (flujo
 )
 
 class State(TypedDict):
+    """
+    Estado de la conversación.
+
+    Attributes:
+        messages (list): Lista de mensajes intercambiados en la sesión.
+    """
     messages: Annotated[List[AnyMessage], add_messages]
 
+# Plantilla de prompt inicial
 prompt = ChatPromptTemplate.from_messages([
     ("system", flujo),
     ("placeholder", "{messages}")
 ])
 
+# Configuración del agente con herramientas
 agent = prompt | chat.bind_tools(tools)
 
+def warmup_model():
+    """Envia un mensaje invisible al modelo para precargar conexión y contexto."""
+    print("⚡ Precargando modelo...")
+    _ = agent.invoke({"messages": [HumanMessage(content="...")]})
+    print("✅ Modelo precargado\n")
+
 def recibir_input(State):
-    user_input = input("👤 Cliente: ")
+    """Solicita entrada del usuario (cliente) y la agrega al estado."""
+    user_input = input("\n👤 Cliente: ")
     State["messages"].append(HumanMessage(content=user_input))
     return State
 
 def ejecutar_agente(State):
-    print(State["messages"])
+    """Ejecuta el modelo con el estado actual y muestra la respuesta."""
+    #print("\n🤖 Daniela:")
     output = agent.invoke(State)
     respuesta = str(output.content)
     State["messages"].append(output)
@@ -51,6 +79,7 @@ def ejecutar_agente(State):
     return State
 
 def verificar_cierre(State):
+    """Verifica si la última respuesta del agente indica cierre de conversación."""
     frases_cierre = [
         "que tenga un buen día",
         "hasta luego",
@@ -66,6 +95,7 @@ def verificar_cierre(State):
 
 
 def decision_combined(State: dict[str, Any]) -> str:
+    """Determina el siguiente paso de ejecución."""
     if verificar_cierre(State) == "finalizar":
         return "finalizar"
     decision = tools_condition(State)
@@ -73,6 +103,7 @@ def decision_combined(State: dict[str, Any]) -> str:
         return "recibir_input"
     return decision
 
+# Definición del grafo de estados
 graph = StateGraph(State)
 graph.add_node("recibir_input", recibir_input)
 graph.add_node("ejecutar_agente", ejecutar_agente)
@@ -89,6 +120,8 @@ graph.add_conditional_edges("ejecutar_agente", decision_combined, {
 graph.add_edge("tools", "ejecutar_agente")
 graph.set_finish_point("finalizar")
 
+# Precarga del modelo
+warmup_model()
 app = graph.compile()
 
 """ with open("grafo.png", "wb") as f:

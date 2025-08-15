@@ -1,3 +1,19 @@
+"""
+Módulo de herramientas (Tools) para el agente conversacional.
+
+Cada herramienta está pensada para cumplir una función específica
+dentro del flujo de cobranzas. Se registran como funciones compatibles
+con LangChain para que el modelo pueda llamarlas automáticamente.
+
+Herramientas disponibles:
+    - ConsultarCliente
+    - RegistrarCompromiso
+    - RegistrarObjecion
+    - InterpretarFechaRelativa
+    - VerificarMedioDePago
+    - ActualizarDatosCliente
+"""
+
 import dateparser
 from datetime import datetime, timedelta
 import pytz
@@ -6,12 +22,18 @@ from langchain.tools import Tool, tool
 
 from supabase_client import supabase
 
-@tool
+@tool("ConsultarCliente")
 def consultar_cliente(contrato: str) -> str:
     """
     Consulta los datos de un cliente por su número de contrato.
-    Usa este formato: 'C-001234'
+
+    Args:
+        contrato (str): Código de contrato, ej. "C-001234".
+
+    Returns:
+        str: Información resumida del cliente o mensaje de error.
     """
+
     res = supabase.table("clientes").select("*").eq("contrato", contrato).eq("activo", True).execute()
     data = res.data
     if not data:
@@ -24,10 +46,16 @@ def consultar_cliente(contrato: str) -> str:
         f"Teléfono: {cliente['telefono1']}"
     )
 
-@tool
+@tool("RegistrarCompromiso")
 def registrar_compromiso(datos: str) -> str:
     """
-    Formato esperado: "contrato=C-001234;monto=30.5;fecha=2025-08-01;canal=Servipagos"
+    Registra un compromiso de pago.
+
+    Formato esperado:
+        "contrato=C-001234;monto=30.5;fecha=2025-08-01;canal=Servipagos"
+
+    Returns:
+        str: Mensaje de confirmación o error.
     """
     try:
         partes = dict(p.split("=") for p in datos.split(";"))
@@ -51,10 +79,16 @@ def registrar_compromiso(datos: str) -> str:
     except Exception as e:
         return f"Error al registrar el compromiso {str(e)}"
 
-@tool
+@tool("RegistrarObjecion")
 def registrar_objecion(datos: str) -> str:
     """
-    Formato: "contrato=C-001234;tipo=Falta de dinero;mensaje=Estoy desempleado"
+    Registra una objeción del cliente.
+
+    Formato esperado:
+        "contrato=C-001234;tipo=Falta de dinero;mensaje=Estoy desempleado"
+
+    Returns:
+        str: Mensaje de confirmación o error.
     """
     try:
         partes = dict(p.split("=") for p in datos.split(";"))
@@ -76,12 +110,41 @@ def registrar_objecion(datos: str) -> str:
     except Exception as e:
         return f"Error al registrar objeción: {str(e)}"
 
-@tool
+@tool("InterpretarFechaRelativa")
 def interpretar_fecha(fecha_natural: str) -> str:
     """
-    Convierte expresiones como 'hoy', 'mañana', 'viernes', 
-    'en 3 días', 'el próximo lunes', etc. en formato YYYY-MM-DD.
+    Convierte expresiones naturales de tiempo en una fecha exacta.
+
+    Ejemplos de entrada:
+        - "hoy"
+        - "mañana"
+        - "viernes"
+        - "en 3 días"
+        - "el próximo lunes"
+
+    Args:
+        fecha_natural (str): Expresión de fecha en lenguaje natural.
+
+    Returns:
+        str: Fecha en formato "YYYY-MM-DD" o mensaje de error.
     """
+    """
+    Convierte expresiones naturales de tiempo en una fecha exacta.
+
+    Ejemplos de entrada:
+        - "hoy"
+        - "mañana"
+        - "viernes"
+        - "en 3 días"
+        - "el próximo lunes"
+
+    Args:
+        fecha_natural (str): Expresión de fecha en lenguaje natural.
+
+    Returns:
+        str: Fecha en formato "YYYY-MM-DD" o mensaje de error.
+    """
+
     if not fecha_natural or not fecha_natural.strip():
         return "La entrada está vacía o es inválida"
 
@@ -114,12 +177,18 @@ def interpretar_fecha(fecha_natural: str) -> str:
         return "No se pudo interpretar la fecha"
     return resultado.strftime("%Y-%m-%d")
 
-@tool
+@tool("VerificarMedioDePago")
 def verificar_medio_pago(name_canal: str) -> str:
     """
-    verifica que el medio de pago este disponible
+    Verifica si un canal de pago es válido.
+
+    Args:
+        name_canal (str): Nombre del canal.
+
+    Returns:
+        str: Confirmación o listado de canales válidos.
     """
-    canales_valido = ["Servipagos", "Mi Vecino", "Banco del Barrio", "Red de Servicios Facilito", "Western Union", "Banco del Pacífico", "Banco Guayaquil", "Banco Machala", "Banco Pichincha", "Banco Bolivariano"]
+    canales_valido = ["Servipagos", "Mi Vecino", "Banco del Barrio", "Red de Servicios Facilito", "Western Union", "Banco del Pacífico", "Banco Guayaquil", "Banco Machala", "Banco Pichincha", "Banco Bolivariano"]
     if name_canal.strip().title() in canales_valido:
         return "Canal valido"
     else:
@@ -128,12 +197,19 @@ def verificar_medio_pago(name_canal: str) -> str:
             + ", ".join(canales_valido) + "."
         )
 
-@tool
+@tool("ActualizarDatosCliente")
 def actualizar_datos_cliente(datos: str) -> str:
     """
-    Actualiza los datos de contacto del cliente.
-    Formato esperado: "contrato=C-001234;telefono1=0999999999,telefono2=1151565;direccion=Calle Falsa 123;referencias=Frente al colegio San Marcos"
+    Actualiza los datos de contacto de un cliente.
+
+    Formato esperado:
+        "contrato=C-001234;telefono1=0999999999;telefono2=1151565;
+         direccion=Calle Falsa 123;referencias=Frente al colegio San Marcos"
+
     Todos los campos excepto 'contrato' son opcionales.
+
+    Returns:
+        str: Mensaje de confirmación o error.
     """
     try:
         partes = dict(p.split("=") for p in datos.split(";") if "=" in p)
